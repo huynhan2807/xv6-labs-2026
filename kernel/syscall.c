@@ -135,6 +135,7 @@ static uint64 (*syscalls[])(void) = {
   // clang-format on
 };
 
+
 void
 syscall(void)
 {
@@ -142,13 +143,27 @@ syscall(void)
   struct proc *p = myproc();
 
   num = p->trapframe->a7;
+
   if (num > 0 && num < NELEM(syscalls) && syscalls[num]) {
     // Check whether the system call is blocked by the sandbox mask.
     if (p->mask & (1 << num)) {
-      p->trapframe->a0 = -1;
+      // Only open and exec can be allowed by pathname.
+      if (num == SYS_open || num == SYS_exec) {
+        char path[MAXPATH];
+
+        // Retrieve the pathname from the first argument.
+        if (argstr(0, path, MAXPATH) < 0 ||
+            strncmp(path, p->path, MAXPATH) != 0) {
+          p->trapframe->a0 = -1;
+        } else {
+          p->trapframe->a0 = syscalls[num]();
+        }
+      } else {
+        // Refuse masked system calls other than open and exec.
+        p->trapframe->a0 = -1;
+      }
     } else {
-      // Use num to lookup the system call function for num, call it,
-      // and store its return value in p->trapframe->a0
+      // Execute system calls that are not masked normally.
       p->trapframe->a0 = syscalls[num]();
     }
   } else {

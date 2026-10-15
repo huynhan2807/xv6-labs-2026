@@ -124,7 +124,10 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  
+  // Initialize the system call mask and allowed pathname.
   p->mask = 0;
+  p->path[0] = '\0';
 
   // Allocate a trapframe page.
   if ((p->trapframe = (struct trapframe *)kalloc()) == 0) {
@@ -279,8 +282,9 @@ kfork(void)
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
 
-  // Inherit the sandbox mask from the parent process.
+  // Inherit the sandbox mask and allowed pathname from the parent.
   np->mask = p->mask;
+  safestrcpy(np->path, p->path, MAXPATH);
 
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;

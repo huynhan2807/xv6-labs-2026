@@ -111,14 +111,32 @@ sys_uptime(void)
   return xticks;
 }
 
+// Configure the current process to allow selected system calls
+// only for the specified pathname.
 uint64
 sys_interpose(void)
 {
   struct proc *p = myproc();
   int mask;
+  char path[MAXPATH];
 
+  // Do not allow a sandboxed process to change its policy.
+  if (p->mask != 0)
+    return -1;
+
+  // Retrieve the system call mask from the first argument.
   argint(0, &mask);
+
+  // Retrieve the allowed pathname from the second argument.
+  if(argstr(1, path, MAXPATH) < 0)
+    return -1;
+
+  // Save the system call mask in the current process.
   p->mask = mask;
 
+  // Copy the allowed pathname into the process structure.
+  safestrcpy(p->path, path, MAXPATH);
+
+  // Return 0 to indicate success.
   return 0;
 }
