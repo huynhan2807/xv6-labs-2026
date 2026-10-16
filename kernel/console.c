@@ -24,7 +24,7 @@
 
 #define BACKSPACE 0x100       // erase the last output character
 #define C(x)      ((x) - '@') // Control-x
-
+#define INPUT_BUF_SIZE 128
 //
 // send one character to the uart, but don't use
 // interrupts or sleep(). safe to be called from
@@ -46,13 +46,12 @@ consputc(int c)
 
 struct {
   struct spinlock lock;
-
-  // input circular buffer
-#define INPUT_BUF_SIZE 128
   char buf[INPUT_BUF_SIZE];
-  uint r; // Read index
-  uint w; // Write index
-  uint e; // Edit index
+  uint r;
+  uint w;
+  uint e;
+  int raw;
+  int esc_state;
 } cons;
 
 //
@@ -147,9 +146,68 @@ void
 consoleintr(int c)
 {
   acquire(&cons.lock);
+  if (cons.raw)
+  {
+    c = (c == '\r') ? '\n' : c;
+    if (c == C('P'))
+    {
+      procdump();
+      release(&cons.lock);
+      return;
+    }
+    if (cons.e - cons.r < INPUT_BUF_SIZE)
+    {
+      if (c == '\n')
+        consputc(c);
+      cons.buf[cons.e++ % INPUT_BUF_SIZE] = c;
+      cons.w = cons.e;
+      wakeup(&cons.r);
+    }
 
-  switch (c) {
-  case C('P'): // Print process list.
+    if (c == '\n' || c == C('D'))
+      cons.raw = 0;
+    release(&cons.lock);
+    return;
+  }
+  if (cons.esc_state == 1)
+  {
+    if (c == '[')
+    {
+      cons.esc_state = 2;
+      release(&cons.lock);
+      return;
+    }
+    cons.esc_state = 0;
+  }
+  else if (cons.esc_state == 2)
+  {
+    cons.esc_state = 0;
+    if (c == 'A' || c == 'B')
+    {
+      if (cons.e - cons.r + 3 <= INPUT_BUF_SIZE)
+      {
+        cons.buf[cons.e++ % INPUT_BUF_SIZE] = '\x1b';
+        cons.buf[cons.e++ % INPUT_BUF_SIZE] = '[';
+        cons.buf[cons.e++ % INPUT_BUF_SIZE] = c;
+        cons.raw = 1;
+        cons.w = cons.e;
+        wakeup(&cons.r);
+      }
+      release(&cons.lock);
+      return;
+    }
+  }
+
+  if (c == '\x1b')
+  {
+    cons.esc_state = 1;
+    release(&cons.lock);
+    return;
+  }
+
+  switch (c)
+  {
+  case C('P'):
     procdump();
     break;
   case C('U'): // Kill line.
@@ -170,15 +228,20 @@ consoleintr(int c)
     if (c != 0 && cons.e - cons.r < INPUT_BUF_SIZE) {
       c = (c == '\r') ? '\n' : c;
 
-      // echo back to the user.
-      consputc(c);
+      // Hien thi ky tu, khong hien thi Tab
+      if (c != '\t')
+        consputc(c);
 
-      // store for consumption by consoleread().
+      // Luu ky tu vao bo dem
       cons.buf[cons.e++ % INPUT_BUF_SIZE] = c;
 
-      if (c == '\n' || c == C('D') || cons.e - cons.r == INPUT_BUF_SIZE) {
-        // wake up consoleread() if a whole line (or end-of-file)
-        // has arrived.
+      if (c == '\t') {
+        // Chuyen sang che do raw de xu ly phim Tab
+        cons.raw = 1;
+        cons.w = cons.e;
+        wakeup(&cons.r);
+      } else if (c == '\n' || c == C('D') ||
+                cons.e - cons.r == INPUT_BUF_SIZE) {
         cons.w = cons.e;
         wakeup(&cons.r);
       }
