@@ -60,8 +60,7 @@ main(int argc, char *argv[])
 void
 memdump(char *fmt, char *data, int len)
 {
-  if (fmt == 0 || data == 0 || len < 0)
-  {
+  if (fmt == 0 || data == 0 || len < 0) {
     fprintf(2, "memdump: invalid arguments\n");
     return;
   }
@@ -69,26 +68,20 @@ memdump(char *fmt, char *data, int len)
   // memmove(destination, source, n); dest, source là địa chỉ vùng nhớ đích và nguồn
   // n là số byte cần sao chép
   uint total = (uint)len;
-  for (int i = 0; fmt[i] != '\0'; i++)
-  {
-    if (fmt[i] == 'i')
-    {
+  for (int i = 0; fmt[i] != '\0'; i++) {
+    if (fmt[i] == 'i') {
       int value;
-      if (total < sizeof(value))
-      {
-          fprintf(2, "memdump: not enough data for 'i'\n");
-          return;
+      if (total < sizeof(value)) {
+        fprintf(2, "memdump: not enough data for 'i'\n");
+        return;
       }
       memmove(&value, data, sizeof(value));
       printf("%d\n", value);
       data += sizeof(value);
       total -= sizeof(value);
-    }
-    else if (fmt[i] == 'p')
-    {
+    } else if (fmt[i] == 'p') {
       uint64 value;
-      if (total < sizeof(value))
-      {
+      if (total < sizeof(value)) {
         fprintf(2, "memdump: not enough data for 'p'\n");
         return;
       }
@@ -96,12 +89,9 @@ memdump(char *fmt, char *data, int len)
       printf("%p\n", value);
       data += sizeof(value);
       total -= sizeof(value);
-    }
-    else if (fmt[i] == 'h')
-    {
+    } else if (fmt[i] == 'h') {
       short value;
-      if (total < sizeof(value))
-      {
+      if (total < sizeof(value)) {
         fprintf(2, "memdump: not enough data for 'h'\n");
         return;
       }
@@ -109,12 +99,9 @@ memdump(char *fmt, char *data, int len)
       printf("%d\n", (int)value);
       data += sizeof(value);
       total -= sizeof(value);
-    }
-    else if (fmt[i] == 'c')
-    {
+    } else if (fmt[i] == 'c') {
       unsigned char value;
-      if (total < sizeof(value))
-      {
+      if (total < sizeof(value)) {
         fprintf(2, "memdump: not enough data for 'c'\n");
         return;
       }
@@ -122,12 +109,9 @@ memdump(char *fmt, char *data, int len)
       printf("%c\n", value);
       data += sizeof(value);
       total -= sizeof(value);
-    }
-    else if (fmt[i] == 's')
-    {
+    } else if (fmt[i] == 's') {
       char *str;
-      if (total < sizeof(str))
-      {
+      if (total < sizeof(str)) {
         fprintf(2, "memdump: not enough data for 's'\n");
         return;
       }
@@ -138,20 +122,15 @@ memdump(char *fmt, char *data, int len)
         printf("(null)\n");
       else
         printf("%s\n", str);
-    }
-    else if (fmt[i] == 'S')
-    {
+    } else if (fmt[i] == 'S') {
       uint j = 0;
-      while (j < total && data[j] != '\0')
-      {
+      while (j < total && data[j] != '\0') {
         printf("%c", (unsigned char)data[j]);
         j++;
       }
       printf("\n");
       return;
-    }
-    else
-    {
+    } else {
       fprintf(2, "memdump: invalid format '%c'\n", fmt[i]);
       return;
     }

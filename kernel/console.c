@@ -22,8 +22,8 @@
 #include "defs.h"
 #include "proc.h"
 
-#define BACKSPACE 0x100       // erase the last output character
-#define C(x)      ((x) - '@') // Control-x
+#define BACKSPACE      0x100       // erase the last output character
+#define C(x)           ((x) - '@') // Control-x
 #define INPUT_BUF_SIZE 128
 //
 // send one character to the uart, but don't use
@@ -146,17 +146,14 @@ void
 consoleintr(int c)
 {
   acquire(&cons.lock);
-  if (cons.raw)
-  {
+  if (cons.raw) {
     c = (c == '\r') ? '\n' : c;
-    if (c == C('P'))
-    {
+    if (c == C('P')) {
       procdump();
       release(&cons.lock);
       return;
     }
-    if (cons.e - cons.r < INPUT_BUF_SIZE)
-    {
+    if (cons.e - cons.r < INPUT_BUF_SIZE) {
       if (c == '\n')
         consputc(c);
       cons.buf[cons.e++ % INPUT_BUF_SIZE] = c;
@@ -169,23 +166,17 @@ consoleintr(int c)
     release(&cons.lock);
     return;
   }
-  if (cons.esc_state == 1)
-  {
-    if (c == '[')
-    {
+  if (cons.esc_state == 1) {
+    if (c == '[') {
       cons.esc_state = 2;
       release(&cons.lock);
       return;
     }
     cons.esc_state = 0;
-  }
-  else if (cons.esc_state == 2)
-  {
+  } else if (cons.esc_state == 2) {
     cons.esc_state = 0;
-    if (c == 'A' || c == 'B')
-    {
-      if (cons.e - cons.r + 3 <= INPUT_BUF_SIZE)
-      {
+    if (c == 'A' || c == 'B') {
+      if (cons.e - cons.r + 3 <= INPUT_BUF_SIZE) {
         cons.buf[cons.e++ % INPUT_BUF_SIZE] = '\x1b';
         cons.buf[cons.e++ % INPUT_BUF_SIZE] = '[';
         cons.buf[cons.e++ % INPUT_BUF_SIZE] = c;
@@ -198,15 +189,13 @@ consoleintr(int c)
     }
   }
 
-  if (c == '\x1b')
-  {
+  if (c == '\x1b') {
     cons.esc_state = 1;
     release(&cons.lock);
     return;
   }
 
-  switch (c)
-  {
+  switch (c) {
   case C('P'):
     procdump();
     break;
@@ -241,7 +230,7 @@ consoleintr(int c)
         cons.w = cons.e;
         wakeup(&cons.r);
       } else if (c == '\n' || c == C('D') ||
-                cons.e - cons.r == INPUT_BUF_SIZE) {
+                 cons.e - cons.r == INPUT_BUF_SIZE) {
         cons.w = cons.e;
         wakeup(&cons.r);
       }
