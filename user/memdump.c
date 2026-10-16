@@ -86,7 +86,7 @@ memdump(char *fmt, char *data, int len)
         return;
       }
       memmove(&value, data, sizeof(value));
-      printf("%p\n", value);
+      printf("%lx\n", value);
       data += sizeof(value);
       total -= sizeof(value);
     } else if (fmt[i] == 'h') {
