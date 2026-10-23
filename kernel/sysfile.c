@@ -221,7 +221,7 @@ sys_unlink(void)
   if (namecmp(name, ".") == 0 || namecmp(name, "..") == 0)
     goto bad;
 
-  if ((ip = dirlookup(dp, name, &off)) == 0)
+  if ((ip = dirlookup(dp, name, &off, 0)) == 0)
     goto bad;
   ilock(ip);
 
@@ -277,12 +277,17 @@ create(char *path, short type, short major, short minor)
     return 0;
   }
 
-  if ((ip = dirlookup(dp, name, 0)) != 0) {
+  int lookup_err = 0;
+  if ((ip = dirlookup(dp, name, 0, &lookup_err)) != 0) {
     iunlockput(dp);
     ilock(ip);
     if (type == T_FILE && (ip->type == T_FILE || ip->type == T_DEVICE))
       return ip;
     iunlockput(ip);
+    return 0;
+  }
+  if (lookup_err) {
+    iunlockput(dp);
     return 0;
   }
 

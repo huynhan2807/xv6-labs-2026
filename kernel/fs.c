@@ -192,6 +192,7 @@ iinit()
 }
 
 static struct inode *iget(uint dev, uint inum);
+static void ifree(uint dev, uint inum);
 
 // Allocate an inode on device dev.
 // Mark it as allocated by  giving it type type.
@@ -212,7 +213,14 @@ ialloc(uint dev, short type)
       dip->type = type;
       log_write(bp); // mark it allocated on the disk
       brelse(bp);
-      return iget(dev, inum);
+      struct inode *ip = iget(dev, inum);
+      if (ip == 0) {
+        // The disk inode was allocated, but no active table entry exists.
+        // Roll back the allocation instead of leaking an inode on disk.
+        ifree(dev, inum);
+        return 0;
+      }
+      return ip;
     }
     brelse(bp);
   }
@@ -265,8 +273,10 @@ iget(uint dev, uint inum)
   }
 
   // Recycle an inode entry.
-  if (empty == 0)
-    panic("iget: no inodes");
+  if (empty == 0) {
+    release(&itable.lock);
+    return 0;
+  }
 
   ip = empty;
   ip->dev = dev;
@@ -589,7 +599,7 @@ namecmp(const char *s, const char *t)
 // Look for a directory entry in a directory.
 // If found, set *poff to byte offset of entry.
 struct inode *
-dirlookup(struct inode *dp, char *name, uint *poff)
+ dirlookup(struct inode *dp, char *name, uint *poff, int *perr)
 {
   uint off, inum;
   struct dirent de;
@@ -607,7 +617,10 @@ dirlookup(struct inode *dp, char *name, uint *poff)
       if (poff)
         *poff = off;
       inum = de.inum;
-      return iget(dp->dev, inum);
+      struct inode *ip = iget(dp->dev, inum);
+      if (ip == 0 && perr)
+        *perr = -1;
+      return ip;
     }
   }
 
@@ -624,10 +637,13 @@ dirlink(struct inode *dp, char *name, uint inum)
   struct inode *ip;
 
   // Check that name is not present.
-  if ((ip = dirlookup(dp, name, 0)) != 0) {
+  int lookup_err = 0;
+  if ((ip = dirlookup(dp, name, 0, &lookup_err)) != 0) {
     iput(ip);
     return -1;
   }
+  if (lookup_err)
+    return -1;
 
   // Look for an empty dirent.
   for (off = 0; off < dp->size; off += sizeof(de)) {
@@ -692,11 +708,15 @@ static struct inode *
 namex(char *path, int nameiparent, char *name)
 {
   struct inode *ip, *next;
+  int lookup_err;
 
   if (*path == '/')
     ip = iget(ROOTDEV, ROOTINO);
   else
     ip = idup(myproc()->cwd);
+
+  if (ip == 0)
+    return 0;
 
   while ((path = skipelem(path, name)) != 0) {
     ilock(ip);
@@ -713,7 +733,8 @@ namex(char *path, int nameiparent, char *name)
       iunlock(ip);
       return ip;
     }
-    if ((next = dirlookup(ip, name, 0)) == 0) {
+    lookup_err = 0;
+    if ((next = dirlookup(ip, name, 0, &lookup_err)) == 0) {
       iunlockput(ip);
       return 0;
     }
