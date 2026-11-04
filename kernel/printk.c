@@ -150,3 +150,24 @@ printkinit(void)
 {
   initlock(&pr.lock, "pr");
 }
+
+void
+backtrace(void)
+{
+    printk("backtrace:\n");
+
+    uint64 fp = r_fp();
+    uint64 stack_bottom = PGROUNDDOWN(fp);
+
+    while (PGROUNDDOWN(fp) == stack_bottom) {
+        uint64 ra = *(uint64 *)(fp - 8);
+        printk("%p\n", (void *)ra);
+
+        uint64 prev_fp = *(uint64 *)(fp - 16);
+
+        if (prev_fp <= fp)
+            break;
+
+        fp = prev_fp;
+    }
+}
