@@ -14,6 +14,7 @@
 #include "riscv.h"
 #include "defs.h"
 #include "proc.h"
+#include "backtrace_table.h"
 
 volatile int panicking = 0; // printing a panic message
 volatile int panicked = 0;  // spinning forever at end of a panic
@@ -151,6 +152,30 @@ printkinit(void)
   initlock(&pr.lock, "pr");
 }
 
+static const struct backtrace_entry *
+find_backtrace_entry(uint64 addr)
+{
+    int left = 0;
+    int right = BACKTRACE_TABLE_SIZE - 1;
+    int result = -1;
+
+    while (left <= right) {
+        int mid = (left + right) / 2;
+
+        if (backtrace_table[mid].start <= addr) {
+            result = mid;
+            left = mid + 1;
+        } else {
+            right = mid - 1;
+        }
+    }
+
+    if (result < 0)
+        return 0;
+
+    return &backtrace_table[result];
+}
+
 void
 backtrace(void)
 {
@@ -161,7 +186,20 @@ backtrace(void)
 
     while (PGROUNDDOWN(fp) == stack_bottom) {
         uint64 ra = *(uint64 *)(fp - 8);
-        printk("%p\n", (void *)ra);
+
+        // Return address points after the call instruction.
+        // Subtract 1 to locate the instruction that made the call.
+        const struct backtrace_entry *entry =
+            find_backtrace_entry(ra - 1);
+
+        if (entry) {
+            printk("%s — %s:%d\n",
+                   entry->function,
+                   entry->file,
+                   entry->line);
+        } else {
+            printk("%p (unknown)\n", (void *)ra);
+        }
 
         uint64 prev_fp = *(uint64 *)(fp - 16);
 
